@@ -2,6 +2,8 @@
 
 A high performance word games server for WebSockets
 
+Word bank retrieved from Datamuse: https://www.datamuse.com/api/
+
 ---
 
 ## Spinning it up

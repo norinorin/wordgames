@@ -13,12 +13,13 @@ use axum::{
     routing, Router, Server,
 };
 use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
 use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
             EnvFilter::try_from_default_env()
@@ -26,10 +27,17 @@ async fn main() {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
+    
+    // Initialize word bank on boot
+    let word_bank: Vec<DatamuseRes> = reqwest::get("http://api.datamuse.com/words?sp=?????&max=500")
+        .await?
+        .json()
+        .await?;
 
     let state = Arc::new(AppState {
         global_message_tx: broadcast::channel(64).0,
         players: Mutex::new(HashSet::new()),
+        word_bank,
     });
 
     let app = Router::new()
@@ -41,13 +49,21 @@ async fn main() {
     tracing::debug!("Listening on {}", addr);
     Server::bind(&addr)
         .serve(app.into_make_service())
-        .await
-        .unwrap();
+        .await?;
+    
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct DatamuseRes {
+    word: String,
+    score: i32
 }
 
 struct AppState {
     global_message_tx: broadcast::Sender<String>,
     players: Mutex<HashSet<String>>,
+    word_bank: Vec<DatamuseRes>,
 }
 
 async fn ws_anagram_handler(
@@ -62,28 +78,29 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
 
     // Handle username registration
     let name = loop {
-        if let Some(Ok(message)) = ws_rx.next().await {
-            if let Message::Text(name) = message {
-                let is_username_taken = {
-                    let mut players = state.players.lock().unwrap();
-                    let is_username_taken = players.contains(&name);
-
-                    if !is_username_taken {
-                        players.insert(name.clone());
-                    }
-
-                    is_username_taken
-                };
+        if let Some(Ok(Message::Text(name))) = ws_rx.next().await {
+            let is_username_taken = {
+                let mut players = state.players.lock().unwrap();
+                let is_username_taken = players.contains(&name);
 
                 if !is_username_taken {
-                    break name;
+                    players.insert(name.clone());
                 }
 
-                ws_tx
-                    .send(Message::Text("Username already taken!".to_owned()))
-                    .await
-                    .unwrap();
+                is_username_taken
+            };
+
+            if !is_username_taken {
+                break name;
             }
+
+            ws_tx
+                .send(Message::Text("Username already taken!".to_owned()))
+                .await
+                .unwrap();
+        } else {
+            tracing::debug!("Someone left prematurely");
+            return;
         }
     };
 
@@ -109,7 +126,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(message))) = ws_rx.next().await {
             global_message_tx
-                .send(format!("{}: {}", &cloned_name, message))
+                .send(format!("{}: {message}", &cloned_name))
                 .unwrap();
         }
     });
