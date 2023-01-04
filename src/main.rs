@@ -27,12 +27,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
-    
+
     // Initialize word bank on boot
-    let word_bank: Vec<DatamuseRes> = reqwest::get("http://api.datamuse.com/words?sp=?????&max=500")
-        .await?
-        .json()
-        .await?;
+    let word_bank: Vec<DatamuseRes> =
+        reqwest::get("http://api.datamuse.com/words?sp=?????&max=500")
+            .await?
+            .json()
+            .await?;
 
     let state = Arc::new(AppState {
         global_message_tx: broadcast::channel(64).0,
@@ -47,17 +48,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("Listening on {}", addr);
-    Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
-    
+    Server::bind(&addr).serve(app.into_make_service()).await?;
+
     Ok(())
 }
 
 #[derive(Deserialize)]
 struct DatamuseRes {
     word: String,
-    score: i32
+    score: i32,
 }
 
 struct AppState {
@@ -74,6 +73,7 @@ async fn ws_anagram_handler(
 }
 
 async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
+    tracing::debug!("A player entered! Waiting for username entry.");
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
 
     // Handle username registration
@@ -99,7 +99,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
                 .await
                 .unwrap();
         } else {
-            tracing::debug!("Someone left prematurely");
+            tracing::debug!("A player left before entering their username!");
             return;
         }
     };
@@ -107,6 +107,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     // Now handle the messages.
     let mut global_message_rx = state.global_message_tx.subscribe();
 
+    tracing::debug!("{} joined!", &name);
     state
         .global_message_tx
         .send(format!("{} joined!", &name))
@@ -137,6 +138,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
         _ = (&mut recv_task) => send_task.abort(),
     }
 
+    tracing::debug!("{} left!", &name);
     state
         .global_message_tx
         .send(format!("{} left!", &name))
