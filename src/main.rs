@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     net::SocketAddr,
     sync::{Arc, Mutex},
 };
@@ -12,8 +12,8 @@ use axum::{
     response::IntoResponse,
     routing, Router, Server,
 };
-use futures_util::{SinkExt, StreamExt};
-use serde::Deserialize;
+use futures_util::{stream::SplitStream, SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -39,6 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         global_message_tx: broadcast::channel(64).0,
         players: Mutex::new(HashSet::new()),
         word_bank,
+        game_state: None,
     });
 
     let app = Router::new()
@@ -53,16 +54,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+struct AppState {
+    global_message_tx: broadcast::Sender<String>,
+    players: Mutex<HashSet<String>>,
+    word_bank: Vec<DatamuseRes>,
+    game_state: Option<GameState>,
+}
+
 #[derive(Deserialize)]
 struct DatamuseRes {
     word: String,
     score: i32,
 }
 
-struct AppState {
-    global_message_tx: broadcast::Sender<String>,
-    players: Mutex<HashSet<String>>,
-    word_bank: Vec<DatamuseRes>,
+#[derive(Serialize)]
+#[serde(tag = "type", content = "content")]
+enum ServerMessage {
+    ChatMessage(String),
+    OngoingGameInfo {
+        word_to_guess: String,
+        round_finish_time: String,
+    },
+}
+
+struct GameState {
+    round_status: RoundStatus,
+    player_to_points: HashMap<String, i32>,
+}
+
+enum RoundStatus {
+    Guessing(String),
+    RevealingAnswer(String),
 }
 
 async fn ws_anagram_handler(
@@ -123,13 +145,10 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
 
     let global_message_tx = state.global_message_tx.clone();
     let cloned_name = name.clone();
+    let cloned_state = state.clone();
 
     let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(message))) = ws_rx.next().await {
-            global_message_tx
-                .send(format!("{}: {message}", &cloned_name))
-                .unwrap();
-        }
+        handle_ws_recv(cloned_state, global_message_tx, cloned_name, &mut ws_rx).await;
     });
 
     // Handle exiting
@@ -144,4 +163,52 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
         .send(format!("{} left!", &name))
         .unwrap();
     state.players.lock().unwrap().remove(&name);
+}
+
+async fn handle_ws_recv(
+    app_state: Arc<AppState>,
+    global_message_tx: broadcast::Sender<String>,
+    name: String,
+    ws_rx: &mut SplitStream<WebSocket>,
+) {
+    while let Some(Ok(Message::Text(message))) = ws_rx.next().await {
+        if message.starts_with("/start") {
+            let splitted: Vec<&str> = message.split(' ').skip(1).take(1).collect();
+
+            if splitted.len() == 1 {
+                splitted[0].parse::<i32>().map_or_else(
+                    |_| {
+                        global_message_tx
+                            .send(format!(
+                                "To {name}: Invalid start match format! Not a number."
+                            ))
+                            .unwrap();
+                    },
+                    |timer_duration| {
+                        if app_state.game_state.is_none() {
+                            global_message_tx
+                                .send(format!(
+                                    "To {name}: Can't start match! One's already ongoing."
+                                ))
+                                .unwrap();
+                        } else {
+                            global_message_tx
+                                .send(format!(
+                                    "New Game with round timer {timer_duration} started!"
+                                ))
+                                .unwrap();
+                        }
+                    },
+                );
+            } else {
+                global_message_tx
+                    .send(format!("To {name}: Invalid start match format!"))
+                    .unwrap();
+            }
+        } else {
+            global_message_tx
+                .send(format!("{name}: {message}"))
+                .unwrap();
+        }
+    }
 }
