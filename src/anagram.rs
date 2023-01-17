@@ -90,10 +90,8 @@ impl Anagram {
         }
 
         let random = self.words.choose(&mut rand::thread_rng()).unwrap().clone();
-        let mut chars: Vec<char> = random.word.chars().collect();
-        chars.shuffle(&mut rand::thread_rng());
+        let shuffled = Self::shuffle_word(&random.word);
         let ends_at = Instant::now() + Duration::from_secs(duration as u64);
-        let shuffled: String = chars.iter().collect();
         self.tx
             .send(format!(
                 "Word: {}. You have {duration} second(s) to guess!",
@@ -127,6 +125,19 @@ impl Anagram {
             ))
             .unwrap();
             *round_status = RoundStatus::Idle;
+        }
+    }
+
+    fn shuffle_word(word: &str) -> String {
+        let mut chars: Vec<char> = word.chars().collect();
+        loop {
+            chars.shuffle(&mut rand::thread_rng());
+            let shuffled: String = chars.iter().collect();
+            // If the word has less than 4 chars,
+            // don't bother retrying
+            if chars.len() <= 3 || shuffled != word {
+                break shuffled;
+            }
         }
     }
 }
