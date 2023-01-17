@@ -56,20 +56,26 @@ impl Anagram {
         self.players.remove(name);
     }
 
-    pub async fn guess(&mut self, player: String, guess: String) {
+    pub async fn guess(&mut self, player: &str, guess: &str) {
         let mut round_status = self.round_status.lock().await;
         if let RoundStatus::Ongoing(status) = &*round_status {
             if guess == status.answer {
-                *self.player_to_points.entry(player.clone()).or_insert(0) += status.score;
+                *self.player_to_points.entry(player.to_owned()).or_insert(0) += status.score;
+                tracing::debug!(
+                    "{player} guessed it right. Score: {} (+{})",
+                    self.player_to_points[player],
+                    status.score
+                );
                 self.tx
                     .send(format!(
                         "@{}: you guessed it right! Your score: {} (+{})",
-                        player, self.player_to_points[&player], status.score
+                        player, self.player_to_points[player], status.score
                     ))
                     .unwrap();
-
+                tracing::debug!("Changing round status to idle");
                 *round_status = RoundStatus::Idle;
                 if let Some(handle) = &self.handle {
+                    tracing::debug!("Aborting timeout task");
                     handle.abort();
                 }
             } else {
@@ -80,6 +86,7 @@ impl Anagram {
 
     pub async fn start(&mut self, duration: u32) {
         if let RoundStatus::Ongoing(status) = &*self.round_status.lock().await {
+            tracing::debug!("Can't run multiple games simultaneously");
             self.tx
                 .send(format!(
                     "Please wait until the current game ends. Time left: {:?}",
@@ -116,6 +123,10 @@ impl Anagram {
         round_status: Arc<Mutex<RoundStatus>>,
         deadline: Instant,
     ) {
+        tracing::debug!(
+            "Invalidating game in {:?} seconds",
+            (deadline - Instant::now()).as_secs()
+        );
         sleep_until(deadline).await;
         let mut round_status = round_status.lock().await;
         if let RoundStatus::Ongoing(status) = &*round_status {
@@ -126,9 +137,11 @@ impl Anagram {
             .unwrap();
             *round_status = RoundStatus::Idle;
         }
+        tracing::debug!("Game invalidated");
     }
 
     fn shuffle_word(word: &str) -> String {
+        tracing::debug!("Shuffling word: {word}");
         let mut chars: Vec<char> = word.chars().collect();
         loop {
             chars.shuffle(&mut rand::thread_rng());
@@ -136,8 +149,10 @@ impl Anagram {
             // If the word has less than 4 chars,
             // don't bother retrying
             if chars.len() <= 3 || shuffled != word {
+                tracing::debug!("Shuffled {word} -> {shuffled}");
                 break shuffled;
             }
+            tracing::debug!("{0} == {0}, reshuffling", word);
         }
     }
 }

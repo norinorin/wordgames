@@ -100,8 +100,9 @@ async fn handle_ws_recv(
             continue;
         }
 
+        tracing::debug!("{}: {}", &name, &message);
         global_message_tx
-            .send(format!("{}: {}", name.clone(), message.clone()))
+            .send(format!("{}: {}", &name, &message))
             .unwrap();
 
         if app_state
@@ -112,11 +113,6 @@ async fn handle_ws_recv(
             continue;
         }
 
-        app_state
-            .anagram
-            .lock()
-            .await
-            .guess(name.clone(), message)
-            .await;
+        app_state.anagram.lock().await.guess(&name, &message).await;
     }
 }
