@@ -23,8 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let mut command_handler = CommandHandler::default();
-    command_handler
+    let command_handler = CommandHandler::default()
         .callback(
             "/start",
             Box::new(|ctx| Box::pin(commands::handle_start(ctx))),

@@ -13,7 +13,7 @@ pub struct CommandHandler {
 }
 
 impl CommandHandler {
-    pub fn callback(&mut self, prefix: &str, callback: Callback) -> &mut Self {
+    pub fn callback(mut self, prefix: &str, callback: Callback) -> Self {
         self.callbacks.insert(prefix.to_owned(), callback);
         self
     }
