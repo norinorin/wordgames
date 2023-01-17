@@ -11,7 +11,7 @@ pub async fn handle_start(ctx: Context<'_>) {
             _ => {
                 ctx.tx
                     .send(format!(
-                        "To {}: Invalid start match format! Not a number.",
+                        "@{}: Failed to parse {number:?} as integer.",
                         ctx.author
                     ))
                     .unwrap();

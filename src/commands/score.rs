@@ -8,6 +8,6 @@ pub async fn handle_score(ctx: Context<'_>) {
         .copied()
         .unwrap_or_default();
     ctx.tx
-        .send(format!("@{}: your score is {}", ctx.author, score))
+        .send(format!("@{}: Your score is {}.", ctx.author, score))
         .unwrap();
 }

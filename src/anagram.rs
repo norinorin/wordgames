@@ -62,34 +62,34 @@ impl Anagram {
             if guess == status.answer {
                 *self.player_to_points.entry(player.to_owned()).or_insert(0) += status.score;
                 tracing::debug!(
-                    "{player} guessed it right. Score: {} (+{})",
+                    "{player} guessed it right. Score: {} (+{}).",
                     self.player_to_points[player],
                     status.score
                 );
                 self.tx
                     .send(format!(
-                        "@{}: you guessed it right! Your score: {} (+{})",
+                        "@{}: You guessed it right! Your score: {} (+{}).",
                         player, self.player_to_points[player], status.score
                     ))
                     .unwrap();
-                tracing::debug!("Changing round status to idle");
+                tracing::debug!("Changing round status to idle.");
                 *round_status = RoundStatus::Idle;
                 if let Some(handle) = &self.handle {
-                    tracing::debug!("Aborting timeout task");
+                    tracing::debug!("Aborting timeout task.");
                     handle.abort();
                 }
             } else {
-                self.tx.send(format!("@{player}: keep guessing!")).unwrap();
+                self.tx.send(format!("@{player}: Keep guessing!")).unwrap();
             }
         }
     }
 
     pub async fn start(&mut self, duration: u32) {
         if let RoundStatus::Ongoing(status) = &*self.round_status.lock().await {
-            tracing::debug!("Can't run multiple games simultaneously");
+            tracing::debug!("Can't run multiple games simultaneously.");
             self.tx
                 .send(format!(
-                    "Please wait until the current game ends. Time left: {:?}",
+                    "Please wait until the current game ends. Time left: {:?}.",
                     status.ends_at - Instant::now()
                 ))
                 .unwrap();
@@ -124,24 +124,24 @@ impl Anagram {
         deadline: Instant,
     ) {
         tracing::debug!(
-            "Invalidating game in {:?} seconds",
+            "Invalidating game in {:?} seconds.",
             (deadline - Instant::now()).as_secs()
         );
         sleep_until(deadline).await;
         let mut round_status = round_status.lock().await;
         if let RoundStatus::Ongoing(status) = &*round_status {
             tx.send(format!(
-                "No one has guessed the answer. Answer: {}",
+                "No one has guessed the answer. Answer: {}.",
                 status.answer
             ))
             .unwrap();
             *round_status = RoundStatus::Idle;
         }
-        tracing::debug!("Game invalidated");
+        tracing::debug!("Game invalidated.");
     }
 
     fn shuffle_word(word: &str) -> String {
-        tracing::debug!("Shuffling word: {word}");
+        tracing::debug!("Shuffling word: {word}.");
         let mut chars: Vec<char> = word.chars().collect();
         loop {
             chars.shuffle(&mut rand::thread_rng());
@@ -149,10 +149,10 @@ impl Anagram {
             // If the word has less than 4 chars,
             // don't bother retrying
             if chars.len() <= 3 || shuffled != word {
-                tracing::debug!("Shuffled {word} -> {shuffled}");
+                tracing::debug!("Shuffled {word} -> {shuffled}.");
                 break shuffled;
             }
-            tracing::debug!("{0} == {0}, reshuffling", word);
+            tracing::debug!("{0} == {0}, reshuffling.", word);
         }
     }
 }
