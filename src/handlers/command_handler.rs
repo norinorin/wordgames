@@ -24,9 +24,9 @@ impl CommandHandler {
         tx: &broadcast::Sender<String>,
         author: &String,
         message: &String,
-    ) {
+    ) -> bool {
         if !Self::is_valid_command(&message) {
-            return;
+            return false;
         }
 
         if let Some(callback) = self
@@ -41,6 +41,8 @@ impl CommandHandler {
             })
             .await;
         }
+
+        true
     }
 
     fn is_valid_command(message: &String) -> bool {

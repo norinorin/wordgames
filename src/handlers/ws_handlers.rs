@@ -91,10 +91,13 @@ async fn handle_ws_recv(
             .send(format!("{}: {}", name.clone(), message.clone()))
             .unwrap();
 
-        app_state
+        if app_state
             .command_handler
             .handle(&app_state, &global_message_tx, &name, &message)
-            .await;
+            .await
+        {
+            continue;
+        }
 
         app_state.anagram.lock().await.guess(name.clone(), message);
     }
