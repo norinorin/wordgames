@@ -57,7 +57,8 @@ impl Anagram {
     }
 
     pub async fn guess(&mut self, player: String, guess: String) {
-        if let RoundStatus::Ongoing(status) = &*self.round_status.lock().await {
+        let mut round_status = self.round_status.lock().await;
+        if let RoundStatus::Ongoing(status) = &*round_status {
             if guess == status.answer {
                 *self.player_to_points.entry(player.clone()).or_insert(0) += status.score;
                 self.tx
@@ -66,7 +67,11 @@ impl Anagram {
                         player, self.player_to_points[&player], status.score
                     ))
                     .unwrap();
-                self.finalise().await;
+
+                *round_status = RoundStatus::Idle;
+                if let Some(handle) = &self.handle {
+                    handle.abort();
+                }
             } else {
                 self.tx.send(format!("@{player}: keep guessing!")).unwrap();
             }
@@ -108,28 +113,21 @@ impl Anagram {
         }));
     }
 
-    async fn finalise(&self) {
-        if let Some(handle) = &self.handle {
-            handle.abort();
-        }
-
-        *self.round_status.lock().await = RoundStatus::Idle;
-    }
-
     pub async fn timeout(
         tx: broadcast::Sender<String>,
         round_status: Arc<Mutex<RoundStatus>>,
         deadline: Instant,
     ) {
         sleep_until(deadline).await;
-        if let RoundStatus::Ongoing(status) = &*round_status.lock().await {
+        let mut round_status = round_status.lock().await;
+        if let RoundStatus::Ongoing(status) = &*round_status {
             tx.send(format!(
                 "No one has guessed the answer. Answer: {}",
                 status.answer
             ))
             .unwrap();
+            *round_status = RoundStatus::Idle;
         }
-        *round_status.lock().await = RoundStatus::Idle;
     }
 }
 
