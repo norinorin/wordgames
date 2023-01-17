@@ -1,5 +1,4 @@
 use rand::seq::SliceRandom;
-use reqwest;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use tokio::spawn;
@@ -99,9 +98,8 @@ impl Anagram {
         let shuffled: String = chars.iter().collect();
         self.tx
             .send(format!(
-                "Word: {} ({}). You have {duration} second(s) to guess!",
-                shuffled.clone(),
-                random.word.clone() // remove later
+                "Word: {}. You have {duration} second(s) to guess!",
+                shuffled,
             ))
             .unwrap();
         self.round_status = RoundStatus::Ongoing(GameInfo {

@@ -25,7 +25,7 @@ impl CommandHandler {
         author: &String,
         message: &String,
     ) -> bool {
-        if !Self::is_valid_command(&message) {
+        if !Self::is_valid_command(message) {
             return false;
         }
 
@@ -45,8 +45,8 @@ impl CommandHandler {
         true
     }
 
-    fn is_valid_command(message: &String) -> bool {
-        if !message.starts_with("/") {
+    fn is_valid_command(message: &str) -> bool {
+        if !message.starts_with('/') {
             return false;
         }
 

@@ -5,7 +5,7 @@ pub async fn handle_score(ctx: Context<'_>) {
     let score = anagram
         .player_to_points
         .get(ctx.author)
-        .map(|x| *x)
+        .copied()
         .unwrap_or_default();
     ctx.tx
         .send(format!("@{}: your score is {}", ctx.author, score))
