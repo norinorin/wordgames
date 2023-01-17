@@ -45,7 +45,7 @@ impl Anagram {
             return false;
         }
 
-        self.players.insert(name.to_string());
+        self.players.insert(name.to_owned());
         true
     }
 

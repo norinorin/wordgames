@@ -25,6 +25,13 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
 
     let name = loop {
         if let Some(Ok(Message::Text(name))) = ws_rx.next().await {
+            if name.starts_with("@") {
+                ws_tx
+                    .send(Message::Text("Usernames can't start with @".to_owned()))
+                    .await
+                    .unwrap();
+                continue;
+            }
             let mut anagram = state.anagram.lock().await;
 
             if anagram.insert_player(&name) {
