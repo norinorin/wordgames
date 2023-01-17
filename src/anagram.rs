@@ -1,15 +1,19 @@
 use rand::seq::SliceRandom;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use tokio::spawn;
 use tokio::task::JoinHandle;
 use tokio::time::{Duration, Instant};
-use tokio::{sync::broadcast, time::sleep_until};
+use tokio::{
+    sync::{broadcast, Mutex},
+    time::sleep_until,
+};
 
 pub struct Anagram {
     words: Vec<DatamuseRes>,
     players: HashSet<String>,
-    pub round_status: RoundStatus,
+    pub round_status: Arc<Mutex<RoundStatus>>,
     pub player_to_points: HashMap<String, u32>,
     pub handle: Option<JoinHandle<()>>,
     pub tx: broadcast::Sender<String>,
@@ -52,18 +56,8 @@ impl Anagram {
         self.players.remove(name);
     }
 
-    fn ensure_state(&mut self) {
-        match &self.round_status {
-            RoundStatus::Ongoing(status) if status.ends_at < Instant::now() => {
-                self.round_status = RoundStatus::Idle
-            }
-            _ => {}
-        }
-    }
-
-    pub fn guess(&mut self, player: String, guess: String) {
-        self.ensure_state();
-        if let RoundStatus::Ongoing(status) = &self.round_status {
+    pub async fn guess(&mut self, player: String, guess: String) {
+        if let RoundStatus::Ongoing(status) = &*self.round_status.lock().await {
             if guess == status.answer {
                 *self.player_to_points.entry(player.clone()).or_insert(0) += status.score;
                 self.tx
@@ -72,16 +66,15 @@ impl Anagram {
                         player, self.player_to_points[&player], status.score
                     ))
                     .unwrap();
-                self.finalise();
+                self.finalise().await;
             } else {
                 self.tx.send(format!("@{player}: keep guessing!")).unwrap();
             }
         }
     }
 
-    pub fn start(&mut self, duration: u32) {
-        self.ensure_state();
-        if let RoundStatus::Ongoing(status) = &self.round_status {
+    pub async fn start(&mut self, duration: u32) {
+        if let RoundStatus::Ongoing(status) = &*self.round_status.lock().await {
             self.tx
                 .send(format!(
                     "Please wait until the current game ends. Time left: {:?}",
@@ -102,28 +95,41 @@ impl Anagram {
                 shuffled,
             ))
             .unwrap();
-        self.round_status = RoundStatus::Ongoing(GameInfo {
-            answer: random.word.clone(),
+        *self.round_status.lock().await = RoundStatus::Ongoing(GameInfo {
+            answer: random.word,
             score: random.score,
             shuffled,
             ends_at,
         });
         let tx = self.tx.clone();
-        let answer = random.word;
-        self.handle = Some(spawn(Anagram::timeout(tx, answer, ends_at)));
+        let round_status = self.round_status.clone();
+        self.handle = Some(spawn(async move {
+            Self::timeout(tx, round_status, ends_at).await;
+        }));
     }
 
-    fn finalise(&mut self) {
+    async fn finalise(&self) {
         if let Some(handle) = &self.handle {
             handle.abort();
         }
-        self.round_status = RoundStatus::Idle;
+
+        *self.round_status.lock().await = RoundStatus::Idle;
     }
 
-    pub async fn timeout(tx: broadcast::Sender<String>, answer: String, deadline: Instant) {
+    pub async fn timeout(
+        tx: broadcast::Sender<String>,
+        round_status: Arc<Mutex<RoundStatus>>,
+        deadline: Instant,
+    ) {
         sleep_until(deadline).await;
-        tx.send(format!("No one has guessed the answer. Answer: {}", answer))
+        if let RoundStatus::Ongoing(status) = &*round_status.lock().await {
+            tx.send(format!(
+                "No one has guessed the answer. Answer: {}",
+                status.answer
+            ))
             .unwrap();
+        }
+        *round_status.lock().await = RoundStatus::Idle;
     }
 }
 

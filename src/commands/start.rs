@@ -20,5 +20,5 @@ pub async fn handle_start(ctx: Context<'_>) {
         }
     }
 
-    anagram.start(duration);
+    anagram.start(duration).await;
 }

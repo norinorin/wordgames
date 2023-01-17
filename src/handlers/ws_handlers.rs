@@ -22,7 +22,12 @@ pub async fn ws_anagram_handler(
 async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     tracing::debug!("A player entered! Waiting for username entry.");
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
-
+    ws_tx
+        .send(Message::Text(
+            "Hey there, please enter your name to proceed!".to_owned(),
+        ))
+        .await
+        .unwrap();
     let name = loop {
         if let Some(Ok(Message::Text(name))) = ws_rx.next().await {
             if name.is_empty() {
@@ -107,6 +112,11 @@ async fn handle_ws_recv(
             continue;
         }
 
-        app_state.anagram.lock().await.guess(name.clone(), message);
+        app_state
+            .anagram
+            .lock()
+            .await
+            .guess(name.clone(), message)
+            .await;
     }
 }
