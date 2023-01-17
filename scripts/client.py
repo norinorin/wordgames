@@ -13,6 +13,7 @@ async def _handle_input(websocket):
 async def _poll(websocket):
     async for msg in websocket:
         print(msg.data)
+
         if msg.type in (aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.ERROR):
             break
 
@@ -28,10 +29,13 @@ async def main(uri):
                 tasks, return_when=asyncio.FIRST_COMPLETED
             )
             for task in done:
-                print(task.exception(), file=sys.stderr)
+                if exc := task.exception():
+                    print(exc, file=sys.stderr)
 
             for task in pending:
                 task.cancel()
+
+            print("Disconnected")
 
 
 asyncio.run(main("ws://localhost:3000/ws/anagram"))
