@@ -38,4 +38,4 @@ async def main(uri):
             print("Disconnected")
 
 
-asyncio.run(main("ws://localhost:3000/ws/anagram"))
+asyncio.run(main("ws://play.norin.me/ws/anagram"))

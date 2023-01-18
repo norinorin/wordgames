@@ -1,4 +1,7 @@
-use crate::handlers::Context;
+use crate::{
+    handlers::Context,
+    server_message::{chat, ServerMessage},
+};
 
 pub async fn handle_start(ctx: Context<'_>) {
     let mut anagram = ctx.state.anagram.lock().await;
@@ -10,7 +13,7 @@ pub async fn handle_start(ctx: Context<'_>) {
             }
             _ => {
                 ctx.tx
-                    .send(format!(
+                    .send(chat!(
                         "@{}: Failed to parse {number:?} as integer.",
                         ctx.author
                     ))

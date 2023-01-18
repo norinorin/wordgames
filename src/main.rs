@@ -9,6 +9,8 @@ mod anagram;
 mod app_state;
 mod commands;
 mod handlers;
+#[macro_use]
+mod server_message;
 use anagram::Anagram;
 use app_state::AppState;
 use handlers::CommandHandler;

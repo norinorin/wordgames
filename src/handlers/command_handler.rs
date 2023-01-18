@@ -25,7 +25,7 @@ impl CommandHandler {
         author: &String,
         message: &String,
     ) -> bool {
-        if !Self::is_valid_command(message) {
+        if !self.is_valid_command(message) {
             return false;
         }
 
@@ -45,13 +45,13 @@ impl CommandHandler {
         true
     }
 
-    fn is_valid_command(message: &str) -> bool {
+    fn is_valid_command(&self, message: &str) -> bool {
         if !message.starts_with('/') {
             return false;
         }
 
         if let Some(command) = message.split_ascii_whitespace().next() {
-            return command.len() > 1;
+            return self.callbacks.contains_key(command);
         }
 
         false

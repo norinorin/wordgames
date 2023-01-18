@@ -10,7 +10,7 @@ use axum::{
 use futures_util::{stream::SplitStream, SinkExt, StreamExt};
 use tokio::sync::broadcast;
 
-use crate::app_state::AppState;
+use crate::{app_state::AppState, server_message::chat, server_message::ServerMessage};
 
 pub async fn ws_anagram_handler(
     ws: WebSocketUpgrade,
@@ -23,9 +23,9 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     tracing::debug!("A player entered! Waiting for username entry.");
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
     ws_tx
-        .send(Message::Text(
-            "Hey there, please enter your name to proceed!".to_owned(),
-        ))
+        .send(Message::Text(chat!(
+            "Hey there, please enter your name to proceed!"
+        )))
         .await
         .unwrap();
     let name = loop {
@@ -36,7 +36,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
 
             if name.starts_with('@') {
                 ws_tx
-                    .send(Message::Text("Usernames can't start with @".to_owned()))
+                    .send(Message::Text(chat!("Usernames can't start with @")))
                     .await
                     .unwrap();
                 continue;
@@ -48,7 +48,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
             }
 
             ws_tx
-                .send(Message::Text("Username already taken!".to_owned()))
+                .send(Message::Text(chat!("Username already taken!")))
                 .await
                 .unwrap();
         } else {
@@ -61,7 +61,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     let mut global_message_rx = tx.subscribe();
 
     tracing::debug!("{} joined!", &name);
-    tx.send(format!("{} joined!", &name)).unwrap();
+    tx.send(chat!("{} joined!", &name)).unwrap();
 
     let mut send_task = tokio::spawn(async move {
         while let Ok(message) = global_message_rx.recv().await {
@@ -85,7 +85,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     }
 
     tracing::debug!("{} left!", &name);
-    tx.send(format!("{} left!", &name)).unwrap();
+    tx.send(chat!("{} left!", &name)).unwrap();
     state.anagram.lock().await.remove_player(&name);
 }
 
@@ -101,18 +101,18 @@ async fn handle_ws_recv(
         }
 
         tracing::debug!("{}: {}", &name, &message);
-        global_message_tx
-            .send(format!("{}: {}", &name, &message))
-            .unwrap();
 
-        if app_state
-            .command_handler
-            .handle(&app_state, &global_message_tx, &name, &message)
-            .await
-        {
+        if app_state.anagram.lock().await.guess(&name, &message).await {
             continue;
         }
 
-        app_state.anagram.lock().await.guess(&name, &message).await;
+        global_message_tx
+            .send(chat!("{}: {}", &name, &message))
+            .unwrap();
+
+        app_state
+            .command_handler
+            .handle(&app_state, &global_message_tx, &name, &message)
+            .await;
     }
 }

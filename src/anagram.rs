@@ -10,6 +10,8 @@ use tokio::{
     time::sleep_until,
 };
 
+use crate::server_message::{chat, finish, ongoing_round, ServerMessage};
+
 pub struct Anagram {
     words: Vec<DatamuseRes>,
     players: HashSet<String>,
@@ -56,41 +58,49 @@ impl Anagram {
         self.players.remove(name);
     }
 
-    pub async fn guess(&mut self, player: &str, guess: &str) {
+    pub async fn guess(&mut self, player: &str, guess: &str) -> bool {
         let mut round_status = self.round_status.lock().await;
-        if let RoundStatus::Ongoing(status) = &*round_status {
-            if guess == status.answer {
-                *self.player_to_points.entry(player.to_owned()).or_insert(0) += status.score;
+        if let RoundStatus::Ongoing(info) = &*round_status {
+            if guess == info.answer {
+                *self.player_to_points.entry(player.to_owned()).or_insert(0) += info.score;
                 tracing::debug!(
                     "{player} guessed it right. Score: {} (+{}).",
                     self.player_to_points[player],
-                    status.score
+                    info.score
                 );
                 self.tx
-                    .send(format!(
-                        "@{}: You guessed it right! Your score: {} (+{}).",
-                        player, self.player_to_points[player], status.score
+                    .send(chat!(
+                        "@{}: You guessed it in {:.2?}! Your score: {} (+{}).",
+                        player,
+                        info.starts_at.elapsed(),
+                        self.player_to_points[player],
+                        info.score
                     ))
                     .unwrap();
+                self.tx
+                    .send(chat!("Answer was \"{}.\"", info.answer))
+                    .unwrap();
+                self.tx.send(finish!()).unwrap();
                 tracing::debug!("Changing round status to idle.");
                 *round_status = RoundStatus::Idle;
                 if let Some(handle) = &self.handle {
                     tracing::debug!("Aborting timeout task.");
                     handle.abort();
                 }
-            } else {
-                self.tx.send(format!("@{player}: Keep guessing!")).unwrap();
+                return true;
             }
         }
+
+        false
     }
 
     pub async fn start(&mut self, duration: u32) {
-        if let RoundStatus::Ongoing(status) = &*self.round_status.lock().await {
+        if let RoundStatus::Ongoing(info) = &*self.round_status.lock().await {
             tracing::debug!("Can't run multiple games simultaneously.");
             self.tx
-                .send(format!(
-                    "Please wait until the current game ends. Time left: {:?}.",
-                    status.ends_at - Instant::now()
+                .send(chat!(
+                    "Please wait until the current game ends. Time left: {:.2?}.",
+                    info.ends_at - Instant::now()
                 ))
                 .unwrap();
             return;
@@ -99,17 +109,14 @@ impl Anagram {
         let random = self.words.choose(&mut rand::thread_rng()).unwrap().clone();
         let shuffled = Self::shuffle_word(&random.word);
         let ends_at = Instant::now() + Duration::from_secs(duration as u64);
-        self.tx
-            .send(format!(
-                "Word: {}. You have {duration} second(s) to guess!",
-                shuffled,
-            ))
-            .unwrap();
-        *self.round_status.lock().await = RoundStatus::Ongoing(GameInfo {
+        self.tx.send(chat!("Game started!")).unwrap();
+        self.tx.send(ongoing_round!(shuffled, ends_at)).unwrap();
+        *self.round_status.lock().await = RoundStatus::Ongoing(RoundInfo {
             answer: random.word,
             score: random.score,
             shuffled,
             ends_at,
+            starts_at: Instant::now(),
         });
         let tx = self.tx.clone();
         let round_status = self.round_status.clone();
@@ -129,10 +136,11 @@ impl Anagram {
         );
         sleep_until(deadline).await;
         let mut round_status = round_status.lock().await;
-        if let RoundStatus::Ongoing(status) = &*round_status {
-            tx.send(format!(
+        if let RoundStatus::Ongoing(info) = &*round_status {
+            tx.send(finish!()).unwrap();
+            tx.send(chat!(
                 "No one has guessed the answer. Answer: {}.",
-                status.answer
+                info.answer
             ))
             .unwrap();
             *round_status = RoundStatus::Idle;
@@ -167,13 +175,14 @@ pub struct DatamuseRes {
 pub enum RoundStatus {
     #[default]
     Idle,
-    Ongoing(GameInfo),
+    Ongoing(RoundInfo),
 }
 
 #[derive(Eq, PartialEq)]
-pub struct GameInfo {
+pub struct RoundInfo {
     pub answer: String,
     pub shuffled: String,
     pub score: u32,
     pub ends_at: Instant,
+    pub starts_at: Instant,
 }
