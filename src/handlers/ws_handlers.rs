@@ -24,7 +24,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
     ws_tx
         .send(Message::Text(chat!(
-            "Hey there, please enter your name to proceed! Type /help for help."
+            "Hey there, please enter your name to proceed!"
         )))
         .await
         .unwrap();
@@ -62,8 +62,13 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     let tx = state.anagram.lock().await.tx.clone();
     let mut global_message_rx = tx.subscribe();
 
-    tracing::debug!("{} joined!", &name);
-    tx.send(chat!("{} joined!", &name)).unwrap();
+    tracing::debug!("{name} joined!");
+    tx.send(chat!("{name} joined!")).unwrap();
+
+    ws_tx
+        .send(Message::Text(chat!("Hey {name} o/, type /help for help.")))
+        .await
+        .unwrap();
 
     let mut send_task = tokio::spawn(async move {
         while let Ok(message) = global_message_rx.recv().await {
@@ -86,8 +91,8 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
         _ = (&mut recv_task) => send_task.abort(),
     }
 
-    tracing::debug!("{} left!", &name);
-    tx.send(chat!("{} left!", &name)).unwrap();
+    tracing::debug!("{name} left!");
+    tx.send(chat!("{name} left!")).unwrap();
     state.anagram.lock().await.remove_player(&name);
 }
 
@@ -102,15 +107,13 @@ async fn handle_ws_recv(
             continue;
         }
 
-        tracing::debug!("{}: {}", &name, &message);
+        tracing::debug!("{name}: {message}");
 
         if app_state.anagram.lock().await.guess(&name, &message).await {
             continue;
         }
 
-        global_message_tx
-            .send(chat!("{}: {}", &name, &message))
-            .unwrap();
+        global_message_tx.send(chat!("{name}: {message}")).unwrap();
 
         app_state
             .command_handler
