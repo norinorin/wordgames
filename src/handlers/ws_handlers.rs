@@ -34,9 +34,11 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
                 continue;
             }
 
-            if name.starts_with('@') {
+            if !name.chars().next().unwrap().is_ascii_alphabetic() {
                 ws_tx
-                    .send(Message::Text(chat!("Usernames can't start with @")))
+                    .send(Message::Text(chat!(
+                        "Usernames can only start with ascii letters."
+                    )))
                     .await
                     .unwrap();
                 continue;
