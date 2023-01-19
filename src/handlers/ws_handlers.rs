@@ -9,8 +9,14 @@ use axum::{
 };
 use futures_util::{stream::SplitStream, SinkExt, StreamExt};
 use tokio::sync::broadcast;
+use tokio::time::Instant;
 
-use crate::{app_state::AppState, server_message::chat, server_message::ServerMessage};
+use crate::{
+    anagram::RoundStatus,
+    app_state::AppState,
+    server_message::chat,
+    server_message::{ongoing_round, ServerMessage},
+};
 
 pub async fn ws_anagram_handler(
     ws: WebSocketUpgrade,
@@ -69,6 +75,14 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
         .send(Message::Text(chat!("Hey {name} o/, type /help for help.")))
         .await
         .unwrap();
+
+    // Inform the user about the ongoing round
+    if let RoundStatus::Ongoing(info) = &*state.anagram.lock().await.round_status.lock().await {
+        ws_tx
+            .send(Message::Text(ongoing_round!(info.shuffled, info.ends_at)))
+            .await
+            .unwrap();
+    }
 
     let mut send_task = tokio::spawn(async move {
         while let Ok(message) = global_message_rx.recv().await {
