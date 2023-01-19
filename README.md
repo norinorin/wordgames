@@ -12,7 +12,7 @@ Simply run the binary, or `cargo run`
 
 ## Demonstration
 
-This also works on [PixelSam123's client](https://pixelsam123.github.io/minigames). Put in `wss://play.norin.me/{ROUTE}`
+This also works with [PixelSam123's client](https://pixelsam123.github.io/minigames). Put `wss://play.norin.me/{ROUTE}` in the server URL box.
 
 ## Available routes
 
