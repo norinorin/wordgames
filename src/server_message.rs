@@ -10,6 +10,7 @@ pub enum ServerMessage {
         round_finish_time: chrono::DateTime<chrono::Utc>,
     },
     FinishedGame,
+    #[allow(dead_code)]
     FinishedRoundInfo {
         word_answer: String,
         to_next_round_time: chrono::DateTime<chrono::Utc>,
@@ -39,6 +40,7 @@ macro_rules! finish {
     };
 }
 
+#[allow(dead_code)]
 macro_rules! next {
     ($wd:expr, $eat:expr) => {
         serde_json::to_string(&ServerMessage::FinishedRoundInfo {
