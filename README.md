@@ -1,7 +1,9 @@
 # Wordgames
 
 A rust implementation of [PixelSam123's java wordgames](https://github.com/PixelSam123/wordgames4j).
+
 Word bank retrieved from [Datamuse](https://www.datamuse.com/api/).
+
 I worked on this as a learning project, so things may be subpar.
 
 ---
