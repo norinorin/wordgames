@@ -4,7 +4,7 @@ A Rust implementation of [PixelSam123's Java wordgames](https://github.com/Pixel
 
 Word bank retrieved from [Datamuse](https://www.datamuse.com/api/).
 
-I worked on this as a learning project, so things may be subpar.
+This is a project for me to learn Rust, so things may be subpar.
 
 ---
 
