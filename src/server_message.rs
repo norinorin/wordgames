@@ -40,7 +40,7 @@ macro_rules! finish {
     };
 }
 
-#[allow(dead_code)]
+#[allow(unused_macros)]
 macro_rules! next {
     ($wd:expr, $eat:expr) => {
         serde_json::to_string(&ServerMessage::FinishedRoundInfo {
@@ -54,5 +54,6 @@ macro_rules! next {
 
 pub(crate) use chat;
 pub(crate) use finish;
+#[allow(unused_imports)]
 pub(crate) use next;
 pub(crate) use ongoing_round;
