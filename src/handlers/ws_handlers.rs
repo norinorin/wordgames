@@ -24,7 +24,7 @@ async fn ws_anagram(ws_stream: WebSocket, state: Arc<AppState>) {
     let (mut ws_tx, mut ws_rx) = ws_stream.split();
     ws_tx
         .send(Message::Text(chat!(
-            "Hey there, please enter your name to proceed!"
+            "Hey there, please enter your name to proceed! Type /help for help."
         )))
         .await
         .unwrap();
