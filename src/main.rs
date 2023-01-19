@@ -33,6 +33,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .callback(
             "/score",
             Box::new(|ctx| Box::pin(commands::handle_score(ctx))),
+        )
+        .callback(
+            "/help",
+            Box::new(|ctx| Box::pin(commands::handle_help(ctx))),
         );
 
     let state = Arc::new(AppState {
