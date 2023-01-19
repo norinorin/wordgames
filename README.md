@@ -10,11 +10,13 @@ I worked on this as a learning project, so things may be subpar.
 
 ## Spinning it up
 
-Simply run the binary, or `cargo run`
+Simply run the binary, or `cargo run`.
 
 ## Demo
 
-This also works with [PixelSam123's client](https://pixelsam123.github.io/minigames). Put `wss://play.norin.me/{ROUTE}` in the server URL box.
+This also works with [PixelSam123's client](https://pixelsam123.github.io/minigames).
+
+Put `wss://play.norin.me/{ROUTE}` in the server URL box.
 
 ## Available routes
 
