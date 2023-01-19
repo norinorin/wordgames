@@ -61,7 +61,7 @@ impl Anagram {
     pub async fn guess(&mut self, player: &str, guess: &str) -> bool {
         let mut round_status = self.round_status.lock().await;
         if let RoundStatus::Ongoing(info) = &*round_status {
-            if guess == info.answer {
+            if guess.to_lowercase() == info.answer.to_lowercase() {
                 *self.player_to_points.entry(player.to_owned()).or_insert(0) += info.score;
                 tracing::debug!(
                     "{player} guessed it right. Score: {} (+{}).",
